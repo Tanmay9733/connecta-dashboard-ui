@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { 
   MoreHorizontal, 
   Plus, 
@@ -7,9 +7,12 @@ import {
   RefreshCw,
   Edit,
   Trash2,
-  Copy
+  Copy,
+  Loader2,
+  Search
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +21,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import InsertRowDialog from "./InsertRowDialog";
+import FilterDialog from "./FilterDialog";
 
 interface Column {
   name: string;
@@ -30,6 +36,12 @@ interface Row {
   [key: string]: any;
 }
 
+interface FilterCondition {
+  column: string;
+  operator: string;
+  value: string;
+}
+
 const mockColumns: Column[] = [
   { name: "id", type: "int4", isPrimary: true },
   { name: "name", type: "varchar" },
@@ -39,7 +51,7 @@ const mockColumns: Column[] = [
   { name: "updated_at", type: "timestamp" },
 ];
 
-const mockRows: Row[] = [
+const initialMockRows: Row[] = [
   { id: 1, name: "Alice Chen", email: "alice@example.com", role: "Admin", created_at: "2024-01-15 09:24:00", updated_at: "2024-01-15 09:24:00" },
   { id: 2, name: "Bob Smith", email: "bob@example.com", role: "User", created_at: "2024-01-14 14:32:00", updated_at: "2024-01-15 08:15:00" },
   { id: 3, name: "Carol Davis", email: "carol@example.com", role: "Editor", created_at: "2024-01-13 11:45:00", updated_at: "2024-01-14 16:20:00" },
@@ -53,8 +65,91 @@ interface DataTableProps {
 }
 
 const DataTable = ({ tableName }: DataTableProps) => {
+  const [rows, setRows] = useState<Row[]>(initialMockRows);
   const [selectedRows, setSelectedRows] = useState<Set<number | string>>(new Set());
   const [hoveredRow, setHoveredRow] = useState<number | string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [insertDialogOpen, setInsertDialogOpen] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterCondition[]>([]);
+
+  // Apply filters and search
+  const filteredRows = useMemo(() => {
+    let result = [...rows];
+
+    // Apply search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(row =>
+        Object.values(row).some(val =>
+          String(val).toLowerCase().includes(query)
+        )
+      );
+    }
+
+    // Apply filters
+    filters.forEach(filter => {
+      result = result.filter(row => {
+        const value = String(row[filter.column] || "").toLowerCase();
+        const filterValue = filter.value.toLowerCase();
+
+        switch (filter.operator) {
+          case "equals":
+            return value === filterValue;
+          case "contains":
+            return value.includes(filterValue);
+          case "startsWith":
+            return value.startsWith(filterValue);
+          case "endsWith":
+            return value.endsWith(filterValue);
+          case "gt":
+            return parseFloat(value) > parseFloat(filterValue);
+          case "lt":
+            return parseFloat(value) < parseFloat(filterValue);
+          default:
+            return true;
+        }
+      });
+    });
+
+    return result;
+  }, [rows, searchQuery, filters]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 800));
+    setIsRefreshing(false);
+    toast.success("Data refreshed!");
+  };
+
+  const handleExport = () => {
+    const data = JSON.stringify(filteredRows, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${tableName.split("-").pop()}_export.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Data exported successfully!");
+  };
+
+  const handleInsertRow = (newRow: Record<string, any>) => {
+    setRows([newRow as Row, ...rows]);
+  };
+
+  const handleDeleteRow = (id: number | string) => {
+    setRows(rows.filter(r => r.id !== id));
+    selectedRows.delete(id);
+    setSelectedRows(new Set(selectedRows));
+    toast.success("Row deleted!");
+  };
+
+  const handleCopyRow = (row: Row) => {
+    navigator.clipboard.writeText(JSON.stringify(row, null, 2));
+    toast.success("Copied to clipboard!");
+  };
 
   const toggleRowSelection = (id: number | string) => {
     const newSelection = new Set(selectedRows);
@@ -67,10 +162,10 @@ const DataTable = ({ tableName }: DataTableProps) => {
   };
 
   const toggleAllRows = () => {
-    if (selectedRows.size === mockRows.length) {
+    if (selectedRows.size === filteredRows.length) {
       setSelectedRows(new Set());
     } else {
-      setSelectedRows(new Set(mockRows.map(r => r.id)));
+      setSelectedRows(new Set(filteredRows.map(r => r.id)));
     }
   };
 
@@ -99,24 +194,45 @@ const DataTable = ({ tableName }: DataTableProps) => {
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold">{tableName.split("-").pop()}</h2>
           <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium">
-            {mockRows.length} rows
+            {filteredRows.length} rows
           </span>
+          {filters.length > 0 && (
+            <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 text-xs font-medium">
+              {filters.length} filter{filters.length > 1 ? "s" : ""} active
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 w-48"
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setFilterDialogOpen(true)}>
             <Filter className="h-4 w-4 mr-2" />
             Filter
+            {filters.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-xs">
+                {filters.length}
+              </span>
+            )}
           </Button>
-          <Button variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+            <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
             Refresh
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button variant="default" size="sm">
+          <Button variant="default" size="sm" onClick={() => setInsertDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Insert Row
           </Button>
@@ -131,7 +247,7 @@ const DataTable = ({ tableName }: DataTableProps) => {
               <th className="w-10 px-4 py-3">
                 <input
                   type="checkbox"
-                  checked={selectedRows.size === mockRows.length}
+                  checked={filteredRows.length > 0 && selectedRows.size === filteredRows.length}
                   onChange={toggleAllRows}
                   className="rounded border-border"
                 />
@@ -158,7 +274,7 @@ const DataTable = ({ tableName }: DataTableProps) => {
             </tr>
           </thead>
           <tbody>
-            {mockRows.map((row) => (
+            {filteredRows.map((row) => (
               <tr 
                 key={row.id}
                 className={cn(
@@ -204,12 +320,15 @@ const DataTable = ({ tableName }: DataTableProps) => {
                         <Edit className="h-4 w-4 mr-2" />
                         Edit Row
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleCopyRow(row)}>
                         <Copy className="h-4 w-4 mr-2" />
                         Copy as JSON
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive">
+                      <DropdownMenuItem 
+                        className="text-destructive"
+                        onClick={() => handleDeleteRow(row.id)}
+                      >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Delete Row
                       </DropdownMenuItem>
@@ -224,7 +343,7 @@ const DataTable = ({ tableName }: DataTableProps) => {
 
       {/* Footer */}
       <div className="px-6 py-3 border-t border-border flex items-center justify-between text-sm text-muted-foreground">
-        <span>Showing {mockRows.length} of {mockRows.length} rows</span>
+        <span>Showing {filteredRows.length} of {rows.length} rows</span>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled>
             Previous
@@ -234,6 +353,21 @@ const DataTable = ({ tableName }: DataTableProps) => {
           </Button>
         </div>
       </div>
+
+      {/* Dialogs */}
+      <InsertRowDialog
+        open={insertDialogOpen}
+        onOpenChange={setInsertDialogOpen}
+        columns={mockColumns}
+        onInsert={handleInsertRow}
+      />
+      <FilterDialog
+        open={filterDialogOpen}
+        onOpenChange={setFilterDialogOpen}
+        columns={mockColumns}
+        currentFilters={filters}
+        onApplyFilters={setFilters}
+      />
     </div>
   );
 };

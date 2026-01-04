@@ -1,7 +1,11 @@
 import { Database, Plus, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const EmptyState = () => {
+interface EmptyStateProps {
+  onAddConnection: () => void;
+}
+
+const EmptyState = ({ onAddConnection }: EmptyStateProps) => {
   return (
     <div className="flex-1 flex items-center justify-center p-8">
       <div className="max-w-md text-center">
@@ -19,7 +23,7 @@ const EmptyState = () => {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Button variant="hero">
+          <Button variant="hero" onClick={onAddConnection}>
             <Plus className="h-4 w-4 mr-2" />
             Connect Database
           </Button>

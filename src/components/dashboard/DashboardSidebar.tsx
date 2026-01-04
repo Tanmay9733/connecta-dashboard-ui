@@ -60,13 +60,15 @@ interface DashboardSidebarProps {
   onToggle: () => void;
   selectedTable: string | null;
   onSelectTable: (table: string) => void;
+  onAddConnection: () => void;
 }
 
 const DashboardSidebar = ({ 
   isCollapsed, 
   onToggle, 
   selectedTable, 
-  onSelectTable 
+  onSelectTable,
+  onAddConnection
 }: DashboardSidebarProps) => {
   const [expandedProjects, setExpandedProjects] = useState<string[]>(["1"]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -188,7 +190,10 @@ const DashboardSidebar = ({
       {/* Add Connection Button */}
       {!isCollapsed && (
         <div className="p-3 border-t border-sidebar-border">
-          <button className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors text-sm font-medium">
+          <button 
+            onClick={onAddConnection}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors text-sm font-medium"
+          >
             <Plus className="h-4 w-4" />
             Add Connection
           </button>
