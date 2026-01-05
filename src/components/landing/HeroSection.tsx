@@ -37,7 +37,7 @@ const HeroSection = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-fade-in delay-300">
-            <Link to="/dashboard">
+            <Link to="/dbconnection">
               <Button variant="hero" size="xl" className="group">
                 Start Building Free
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
