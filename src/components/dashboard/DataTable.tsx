@@ -8,8 +8,11 @@ import {
   Edit,
   Trash2,
   Copy,
-  Loader2,
-  Search
+  Search,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  Save
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,25 +47,45 @@ interface FilterCondition {
 
 const mockColumns: Column[] = [
   { name: "id", type: "int4", isPrimary: true },
-  { name: "name", type: "varchar" },
-  { name: "email", type: "varchar" },
-  { name: "role", type: "varchar" },
+  { name: "questionList", type: "json" },
   { name: "created_at", type: "timestamp" },
-  { name: "updated_at", type: "timestamp" },
+];
+
+// Question list data as shown in user's example
+const questionListData = [
+  {
+    question: "What are the key differences between `==` and `===` in JavaScript?",
+    type: "Technical"
+  },
+  {
+    question: "Explain the concept of 'closures' in JavaScript and provide a simple example.",
+    type: "Technical"
+  },
+  {
+    question: "Describe your experience with React.js. What are some of the key features you've utilized, and what are some common challenges you've faced?",
+    type: "Experience"
+  },
+  {
+    question: "Briefly explain how Express.js middleware works and give an example of a custom middleware you've created or used.",
+    type: "Technical"
+  },
+  {
+    question: "In a situation where a React component is not re-rendering as expected, what debugging steps would you take?",
+    type: "Problem Solving"
+  }
 ];
 
 const initialMockRows: Row[] = [
-  { id: 1, name: "Alice Chen", email: "alice@example.com", role: "Admin", created_at: "2024-01-15 09:24:00", updated_at: "2024-01-15 09:24:00" },
-  { id: 2, name: "Bob Smith", email: "bob@example.com", role: "User", created_at: "2024-01-14 14:32:00", updated_at: "2024-01-15 08:15:00" },
-  { id: 3, name: "Carol Davis", email: "carol@example.com", role: "Editor", created_at: "2024-01-13 11:45:00", updated_at: "2024-01-14 16:20:00" },
-  { id: 4, name: "David Wilson", email: "david@example.com", role: "User", created_at: "2024-01-12 08:30:00", updated_at: "2024-01-12 08:30:00" },
-  { id: 5, name: "Emma Brown", email: "emma@example.com", role: "Admin", created_at: "2024-01-11 17:22:00", updated_at: "2024-01-13 10:45:00" },
-  { id: 6, name: "Frank Miller", email: "frank@example.com", role: "User", created_at: "2024-01-10 13:15:00", updated_at: "2024-01-10 13:15:00" },
+  { id: 1, questionList: questionListData, created_at: "2024-01-15 09:24:00" },
+  { id: 2, questionList: questionListData.slice(0, 3), created_at: "2024-01-14 14:32:00" },
+  { id: 3, questionList: questionListData.slice(2, 5), created_at: "2024-01-13 11:45:00" },
 ];
 
 interface DataTableProps {
   tableName: string;
 }
+
+const ROWS_PER_PAGE = 10;
 
 const DataTable = ({ tableName }: DataTableProps) => {
   const [rows, setRows] = useState<Row[]>(initialMockRows);
@@ -73,6 +96,8 @@ const DataTable = ({ tableName }: DataTableProps) => {
   const [insertDialogOpen, setInsertDialogOpen] = useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [filters, setFilters] = useState<FilterCondition[]>([]);
+  const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Apply filters and search
   const filteredRows = useMemo(() => {
@@ -115,6 +140,132 @@ const DataTable = ({ tableName }: DataTableProps) => {
 
     return result;
   }, [rows, searchQuery, filters]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
+  const paginatedRows = useMemo(() => {
+    const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
+    return filteredRows.slice(startIndex, startIndex + ROWS_PER_PAGE);
+  }, [filteredRows, currentPage]);
+
+  const handlePrevPage = () => {
+    setCurrentPage((prev) => Math.max(1, prev - 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+  };
+
+  const toggleCellExpanded = (rowId: number | string, colName: string) => {
+    const key = `${rowId}-${colName}`;
+    const newExpanded = new Set(expandedCells);
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key);
+    } else {
+      newExpanded.add(key);
+    }
+    setExpandedCells(newExpanded);
+  };
+
+  const renderCellValue = (row: Row, col: Column) => {
+    const value = row[col.name];
+    const isExpanded = expandedCells.has(`${row.id}-${col.name}`);
+    
+    // Handle JSON/Array data
+    if (col.type === "json" || Array.isArray(value) || (typeof value === "object" && value !== null)) {
+      const jsonString = JSON.stringify(value);
+      const isLongContent = jsonString.length > 50;
+      
+      return (
+        <div className="relative">
+          <button
+            onClick={() => toggleCellExpanded(row.id, col.name)}
+            className="flex items-start gap-1 text-left w-full group"
+          >
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary shrink-0 mt-0.5" />
+            )}
+            <span className="font-mono text-xs text-cyan-400">{col.name}</span>
+            <span className="text-muted-foreground ml-1">json</span>
+          </button>
+          
+          {isExpanded ? (
+            <div className="mt-2 rounded-lg bg-[#1a1f2e] border border-border overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
+                <span className="font-mono text-xs text-muted-foreground">{col.name}</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+                      toast.success("Copied to clipboard!");
+                    }}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copy
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                  >
+                    <Save className="h-3 w-3 mr-1" />
+                    Save changes
+                  </Button>
+                </div>
+              </div>
+              <pre className="p-4 text-xs font-mono overflow-x-auto max-h-80 overflow-y-auto">
+                <code className="text-foreground">
+                  {JSON.stringify(value, null, 2).split('\n').map((line, i) => (
+                    <div key={i} className="leading-relaxed">
+                      <span className="text-muted-foreground select-none mr-4 inline-block w-4 text-right">{i + 1}</span>
+                      {line.split(/(".*?":)|(".*?")|(\d+)|(\[|\]|\{|\}|,)/g).map((part, j) => {
+                        if (!part) return null;
+                        if (part.match(/^".*":$/)) {
+                          return <span key={j} className="text-purple-400">{part}</span>;
+                        }
+                        if (part.match(/^".*"$/)) {
+                          return <span key={j} className="text-green-400">{part}</span>;
+                        }
+                        if (part.match(/^\d+$/)) {
+                          return <span key={j} className="text-amber-400">{part}</span>;
+                        }
+                        if (part.match(/[\[\]\{\},]/)) {
+                          return <span key={j} className="text-muted-foreground">{part}</span>;
+                        }
+                        return <span key={j}>{part}</span>;
+                      })}
+                    </div>
+                  ))}
+                </code>
+              </pre>
+            </div>
+          ) : (
+            <div 
+              className="mt-1 ml-5 font-mono text-xs text-amber-400/80 truncate max-w-md cursor-pointer hover:text-amber-400"
+              onClick={() => toggleCellExpanded(row.id, col.name)}
+            >
+              {isLongContent ? jsonString.slice(0, 60) + "..." : jsonString}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // Regular values
+    if (col.isPrimary) {
+      return <span className="font-mono text-primary">{value}</span>;
+    }
+    if (col.type === "timestamp") {
+      return <span className="text-muted-foreground font-mono text-xs">{value}</span>;
+    }
+    return <span>{value}</span>;
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -274,11 +425,11 @@ const DataTable = ({ tableName }: DataTableProps) => {
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map((row) => (
+            {paginatedRows.map((row) => (
               <tr 
                 key={row.id}
                 className={cn(
-                  "border-t border-border transition-colors",
+                  "border-t border-border transition-colors align-top",
                   selectedRows.has(row.id) ? "bg-primary/5" : "hover:bg-muted/30"
                 )}
                 onMouseEnter={() => setHoveredRow(row.id)}
@@ -294,15 +445,7 @@ const DataTable = ({ tableName }: DataTableProps) => {
                 </td>
                 {mockColumns.map((col) => (
                   <td key={col.name} className="px-4 py-3">
-                    {col.isPrimary ? (
-                      <span className="font-mono text-primary">{row[col.name]}</span>
-                    ) : col.type === "timestamp" ? (
-                      <span className="text-muted-foreground font-mono text-xs">
-                        {row[col.name]}
-                      </span>
-                    ) : (
-                      <span>{row[col.name]}</span>
-                    )}
+                    {renderCellValue(row, col)}
                   </td>
                 ))}
                 <td className="px-4 py-3">
@@ -341,15 +484,59 @@ const DataTable = ({ tableName }: DataTableProps) => {
         </table>
       </div>
 
-      {/* Footer */}
+      {/* Footer with Pagination */}
       <div className="px-6 py-3 border-t border-border flex items-center justify-between text-sm text-muted-foreground">
-        <span>Showing {filteredRows.length} of {rows.length} rows</span>
+        <span>
+          Showing {((currentPage - 1) * ROWS_PER_PAGE) + 1} to {Math.min(currentPage * ROWS_PER_PAGE, filteredRows.length)} of {filteredRows.length} rows
+        </span>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handlePrevPage}
+            disabled={currentPage === 1}
+            className="gap-1"
+          >
+            <ChevronLeft className="h-4 w-4" />
             Previous
           </Button>
-          <Button variant="outline" size="sm" disabled>
+          <div className="flex items-center gap-1 px-2">
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={cn(
+                    "w-8 h-8 rounded-md text-xs font-medium transition-colors",
+                    currentPage === pageNum
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  )}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleNextPage}
+            disabled={currentPage === totalPages || totalPages === 0}
+            className="gap-1"
+          >
             Next
+            <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
