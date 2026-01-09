@@ -128,31 +128,43 @@ export function AppSidebar({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+
+        {/* Create Table Button - Above sidebar content */}
+        {!isCollapsed && (
+          <Button
+            onClick={onCreateTable}
+            className="w-full mt-2 gap-2"
+            size="sm"
+          >
+            <Plus className="h-4 w-4" />
+            Create Table
+          </Button>
+        )}
+        {isCollapsed && (
+          <Button
+            onClick={onCreateTable}
+            size="icon"
+            variant="outline"
+            className="w-full mt-2"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Search & Create Table */}
+        {/* Search */}
         {!isCollapsed && (
           <div className="px-3 py-2">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-8 bg-sidebar-accent border-0"
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onCreateTable}
-                className="h-8 px-2 shrink-0"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 bg-sidebar-accent border-0"
+              />
             </div>
           </div>
         )}
